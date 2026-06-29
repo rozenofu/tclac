@@ -95,6 +95,10 @@ class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
     public:
         tclacClimate() : PollingComponent(5 * 1000) {
             checksum = 0;
+            mode = climate::CLIMATE_MODE_OFF;
+            swing_mode = climate::CLIMATE_SWING_OFF;
+            fan_mode = climate::CLIMATE_FAN_AUTO;
+            preset = climate::ClimatePreset::CLIMATE_PRESET_NONE;
             vertical_direction_ = AirflowVerticalDirection::CENTER;
             horizontal_direction_ = AirflowHorizontalDirection::CENTER;
             vertical_swing_direction_ = VerticalSwingDirection::UP_DOWN;
