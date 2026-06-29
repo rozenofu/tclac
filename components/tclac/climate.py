@@ -335,6 +335,14 @@ def to_code(config):
         cg.add(var.set_supported_fan_modes(config[CONF_SUPPORTED_FAN_MODES]))
     if CONF_SUPPORTED_SWING_MODES in config:
         cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
+    if CONF_VERTICAL_AIRFLOW in config:
+        cg.add(var.set_vertical_airflow(config[CONF_VERTICAL_AIRFLOW][0]))
+    if CONF_HORIZONTAL_AIRFLOW in config:
+        cg.add(var.set_horizontal_airflow(config[CONF_HORIZONTAL_AIRFLOW][0]))
+    if CONF_VERTICAL_SWING_MODE in config:
+        cg.add(var.set_vertical_swing_direction(config[CONF_VERTICAL_SWING_MODE][0]))
+    if CONF_HORIZONTAL_SWING_MODE in config:
+        cg.add(var.set_horizontal_swing_direction(config[CONF_HORIZONTAL_SWING_MODE][0]))
 
     if CONF_TX_LED in config:
         cg.add_define("CONF_TX_LED")

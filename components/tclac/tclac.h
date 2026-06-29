@@ -111,6 +111,10 @@ class tclacClimate : public climate::Climate, public esphome::uart::UARTDevice, 
 
 		tclacClimate() : PollingComponent(5 * 1000) {
 			checksum = 0;
+			vertical_direction_ = AirflowVerticalDirection::CENTER;
+			horizontal_direction_ = AirflowHorizontalDirection::CENTER;
+			vertical_swing_direction_ = VerticalSwingDirection::UP_DOWN;
+			horizontal_swing_direction_ = HorizontalSwingDirection::LEFT_RIGHT;
 		}
 
 		void readData();
