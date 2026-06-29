@@ -95,7 +95,7 @@ void tclacClimate::loop()  {
 		//ESP_LOGD("TCL", "RX full : %s ", raw.c_str());
 		
 		// Проверяем контрольную сумму
-		if (check != dataRX[60]) {
+		if (check != dataRX[67]) {
 			ESP_LOGD("TCL", "Invalid checksum %x", check);
 			this->dataShow(0,0);
 			return;
