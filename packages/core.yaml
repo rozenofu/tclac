@@ -308,5 +308,5 @@ select:
 
 climate:
   - platform: tclac
-    name: "${device_name} Climate"
+    name: "${humanly_name}"
     id: ${device_name}climate
