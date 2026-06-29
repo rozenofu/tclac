@@ -76,7 +76,7 @@ SUPPORTED_CLIMATE_PRESETS_OPTIONS = {
 
 VerticalSwingDirection = tclac_ns.enum("VerticalSwingDirection", True)
 VERTICAL_SWING_DIRECTION_OPTIONS = {
-    "UP_DOWN":  VerticalSwingDirection.UPDOWN,
+    "UP_DOWN":  VerticalSwingDirection.UP_DOWN,
     "UPSIDE":   VerticalSwingDirection.UPSIDE,
     "DOWNSIDE": VerticalSwingDirection.DOWNSIDE,
 }
