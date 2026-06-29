@@ -1,23 +1,58 @@
-Внешний компонент кондиционеров TCL и аналогов для Home Assistant, используя ESPHome.
-Поддерживаются кондиционеры типа TAC-07CHSA и подобные. Увы, предположить точно получится подключить кондиционер или нет практически
-невозможно из-за огромного разбега в комплектациях: даже одна и та же модель, буквально буква-в-букву может, например, не иметь
-родного модуля WiFI, не иметь провода с USB разъемом или вовсе на плате управления может не быть впаян разъем UART.
-Однако, в целом, с пайкой или без, проверены следующие кондиционеры:
-- Axioma ASX09H1/ASB09H1
-- Ballu Discovery DC BSVI-07HN8
-- Ballu Discovery DC BSVI-09HN8
-- Ballu Discovery DC BSVI-12HN8
-- Daichi AIR20AVQ1/AIR20FV1
-- Daichi AIR25AVQS1R-1/AIR25FVS1R-1
-- Daichi AIR35AVQS1R-1/AIR35FVS1R-1
-- Daichi DA35EVQ1-1/DF35EV1-1
-- Dantex RK-12SATI/RK-12SATIE
+# tclac — ESPHome External Component for TCL AC Units
+
+ESPHome external component for controlling TCL air conditioners and compatible units via UART.
+
+This is a fork of [I-am-nightingale/tclac](https://github.com/I-am-nightingale/tclac), rewritten to follow native ESPHome component conventions.
+
+## Changes from upstream
+
+- Removed packages-based configuration in favor of `external_components:` with a self-contained device YAML
+- Removed runtime Home Assistant helper entities (Beeper switch, Display switch, Force config switch, swing selects) — all settings are compile-time
+- Removed LED wiring and screen management logic unrelated to the AC protocol
+- Removed `force_mode` and `module_display` options
+- Fixed temperature precision (integer division bug in sensor formula)
+- Fixed uninitialized enum members in constructor (undefined behavior)
+- Added `initial_sync_done_` pattern: pushes compile-time `beeper` and `show_display` settings to the AC on the first UART response
+- Converted `climate.py` to async `to_code()`, applied all airflow/swing compile-time options
+- Fixed `VerticalSwingDirection` enum name mismatch between Python and C++ (`UPDOWN` -> `UP_DOWN`)
+
+## Hardware
+
+Tested on **M5Stack ATOM S3 Lite** (ESP32-S3).
+
+UART wiring:
+- RX: GPIO7
+- TX: GPIO8
+
+The AC unit must expose a UART interface. Depending on the model, this may require soldering or using the native WiFi module connector. Even units with the same model number may differ in PCB revision and connector availability.
+
+## Protocol
+
+- Baud rate: 9600
+- Data bits: 8
+- Parity: EVEN
+- Stop bits: 1
+- RX packet: 68 bytes, XOR checksum over bytes [0..66] = byte[67]
+- Poll packet sent every 5 seconds: `BB 00 01 04 02 01 00 BD`
+- TX command packet: 38 bytes, same XOR checksum scheme
+
+## Supported hardware
+
+Verified compatible units (from upstream):
+
+- Axioma ASX09H1 / ASB09H1
+- Ballu Discovery DC BSVI-07HN8, BSVI-09HN8, BSVI-12HN8
+- Daichi AIR20AVQ1 / AIR20FV1
+- Daichi AIR25AVQS1R-1 / AIR25FVS1R-1
+- Daichi AIR35AVQS1R-1 / AIR35FVS1R-1
+- Daichi DA35EVQ1-1 / DF35EV1-1
+- Dantex RK-12SATI / RK-12SATIE
 - Ecostar Radium KVS-RAD09CH
 - Royal Clima Gloria Inverter
 - TCL ELI ONF 12
 - TCL Liferise ONF 09
 - TCL TAC-CT09INV/R
-- TCL One Inverter TACM-09HRID/E1 (возможно, иной порядок контактов)
+- TCL One Inverter TACM-09HRID/E1
 - TCL TAC-07CHSA/TPG-W
 - TCL TAC-09CHSA/TPG
 - TCL TAC-09CHSA/DSEI-W
@@ -27,98 +62,124 @@
 - TCL TAC-XAL24I
 - TCL TPG31IHB
 
-Компоненту требуется HomeAsistant и ESPHome версии не ниже 2023.3.0 !
-____
-Это все для работы ИСКЛЮЧИТЕЛЬНО с HomeAsistant и ESPHome. Если Вас интересует другие варианты или возможность подключить кондиционер
-как-то иначе к каким-то другим системам, то мне есть что предложить:
-[Вариант для подключения через MQTT](https://github.com/pavel211/TCL-TAC-07-WiFi)
-____
-Статья по проекту находится [в моем канале на Дзене](https://dzen.ru/a/ZmdoyUNswXWnulhg)
+## Configuration
 
-Все работает, даже стабильно. Какие глюки видел- устранил, какие желания были- реализовал. Конечно, не все, хотелось бы еще спорткар..
-Используя компонент прямо сейчас Вы уже не рискуете душевным здоровьем, но внезапные глюки вполне могут напасть. Если вдруг такое
-случиться именно с Вами- прошу сообщить мне на Дзене, приму меры.
-Подробное описание будет постепенно появляться [в моем канале на Дзене](https://dzen.ru/a/ZmdoyUNswXWnulhg) , сюда буду выкладывать
-самое важное по мере сил.
-____
-Образец для конфигурации ESPHome в файле TCL-Conditioner.yaml , упрощенный вариант конфигурации- Sample_conf.yaml . Скачайте к себе
-и используйте в ESPHome, или просто скопируйте из него всю конфигурацию и вставьте вместо своей, однако, не забыв отредактировать
-все поля. В файле есть подсказки по каждому полю.
-
-Вопрос может возникнуть с 2 моментами: платформа (чип или модуль) и подгружаемые файлы. Попробую объяснить.
-
-## Настройка платформы
-Платформа настраивается точно так же, как ей и полагается настраиваться в ESPHome. Например, так выглядит кусок кода для ESP-01S:
 ```yaml
-esp8266:
-  board: esp01_1m
-```
-А вот так выглядит кусок кода для модуля Hommyn HDN/WFN-02-01 из первой статьи про кондиционер:
-```yaml
+esphome:
+  name: tcl-ac
+  friendly_name: TCL AC
+  min_version: 2026.4.0
+
 esp32:
-  board: esp32-c3-devkitm-1
+  board: m5stack-atoms3
+  variant: esp32s3
   framework:
     type: arduino
-```
-Можно подключать платформу и через основной конфиг. Вот, предложенный [испытателем альфа-версии](https://github.com/kai-zer-ru), пример для Esp32 WROOM32:
-```yaml
-esphome:
-  platform: ESP32
-  board: nodemcu-32s
-```
-А это уже пример для wemos D1 Mini nodemcu esp12f:
-```yaml
-esphome:
-  platform: ESP8266
-  board: esp12e
-```
-В общем- все то же самое, как и обычно, вариант под свою платформу легко ищется в интернете.
 
-**!Важно не забыть закомментировать или удалить строки других платформ!**
+logger:
+  level: DEBUG
+  baud_rate: 0
 
-## Настройка подгружаемых файлов
-Для добавления или удаления определенных частей конфига я решил использовать подгружаемые файлы- они загружаются ESPHome автоматически,
-если у сервера с Home Assistant есть доступ в интернет. Такой подход позволяет редактировать и обновлять не весь конфиг куском,
-а частями, не трогая то, что работает.
-Еще один плюс- не нужно километровые куски кода комментировать или раскомментировать, не нужно знать разметку, нет необходимости считать
-проклятые пробелы и прочее. Все делается добавлением или удалением ссылок на файлы. Итак, вот так выглядит блок подгружаемых файлов:
-```yaml
-packages:
-  remote_package:
-    url: https://github.com/I-am-nightingale/tclac.git
-    ref: master
-    files:
-    # v - равнение строк с опциями вот по этой позиции, иначе глючить будет
-      - packages/core.yaml # Ядро всего сущего
-      # - packages/leds.yaml
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source:
+      url: https://github.com/rozenofu/tclac.git
+      type: git
+      ref: master
+    components: [ tclac ]
     refresh: 30s
+
+uart:
+  id: ac_uart
+  rx_pin: GPIO7
+  tx_pin: GPIO8
+  baud_rate: 9600
+  data_bits: 8
+  parity: EVEN
+  stop_bits: 1
+
+climate:
+  - platform: tclac
+    name: "TCL AC"
+    uart_id: ac_uart
+    beeper: false
+    show_display: true
+    supported_modes:
+      - "OFF"
+      - AUTO
+      - COOL
+      - HEAT
+      - DRY
+      - FAN_ONLY
+    supported_fan_modes:
+      - AUTO
+      - QUIET
+      - LOW
+      - MIDDLE
+      - MEDIUM
+      - HIGH
+      - FOCUS
+      - DIFFUSE
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+      - HORIZONTAL
+      - BOTH
 ```
-Все подгружаемые файлы указываются в секции **files:**. Для работы необходимо, чтобы был хотя-бы
+
+### Climate options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `beeper` | bool | `false` | Enable AC beeper on command |
+| `show_display` | bool | `true` | Enable AC display panel |
+| `supported_modes` | list | all | Modes exposed in HA |
+| `supported_fan_modes` | list | all | Fan speeds exposed in HA |
+| `supported_swing_modes` | list | all | Swing modes exposed in HA |
+| `supported_presets` | list | all | Presets exposed in HA (NONE, ECO, SLEEP, COMFORT) |
+| `vertical_airflow` | enum | `CENTER` | Fixed vertical louver position (LAST, MAX_UP, UP, CENTER, DOWN, MAX_DOWN) |
+| `horizontal_airflow` | enum | `CENTER` | Fixed horizontal louver position (LAST, MAX_LEFT, LEFT, CENTER, RIGHT, MAX_RIGHT) |
+| `vertical_swing_mode` | enum | `UP_DOWN` | Vertical swing range (UP_DOWN, UPSIDE, DOWNSIDE) |
+| `horizontal_swing_mode` | enum | `LEFT_RIGHT` | Horizontal swing range (LEFT_RIGHT, LEFTSIDE, CENTER, RIGHTSIDE) |
+
+Note: `"OFF"` in `supported_modes` and `supported_swing_modes` must be quoted. YAML parses bare `OFF` as boolean false.
+
+### Automation actions
+
 ```yaml
-- packages/core.yaml # Ядро всего сущего
+# Beeper
+- climate.tclac.beeper_on:
+- climate.tclac.beeper_off:
+
+# Display
+- climate.tclac.display_on:
+- climate.tclac.display_off:
+
+# Louver position at runtime
+- climate.tclac.set_vertical_airflow:
+    vertical_airflow: DOWN
+- climate.tclac.set_horizontal_airflow:
+    horizontal_airflow: CENTER
+- climate.tclac.set_vertical_swing_direction:
+    vertical_swing_mode: UP_DOWN
+- climate.tclac.set_horizontal_swing_direction:
+    horizontal_swing_mode: LEFT_RIGHT
 ```
-Все остальные модули по желанию (их описание в том же файле чуть выше). **Важно**, чтобы все строки с файлами были выровнены по
-импровизированной метке, которую я специально указал, иначе у ESPHome возникнет много вопросов к Вам. Например, **должно быть так:**
-```yaml
-packages:
-  remote_package:
-    url: https://github.com/I-am-nightingale/tclac.git
-    ref: master
-    files:
-    # v - равнение строк с опциями вот по этой позиции, иначе глючить будет
-      - packages/core.yaml # Ядро всего сущего
-      - packages/leds.yaml
-    refresh: 30s
-```
-А вот так уже **не правильно:**
-```yaml
-packages:
-  remote_package:
-    url: https://github.com/I-am-nightingale/tclac.git
-    ref: master
-    files:
-    # v - равнение строк с опциями вот по этой позиции, иначе глючить будет
-      - packages/core.yaml # Ядро всего сущего
-        - packages/leds.yaml
-    refresh: 30s
-```
+
+---
+
+## Credits
+
+Protocol reverse engineering and original implementation: [@I-am-nightingale](https://github.com/I-am-nightingale/tclac), [@xaxexa](https://github.com/xaxexa), [@junkfix](https://github.com/junkfix).
+
+The protocol analysis, byte-level decoding of AC state packets, and command frame structure are based entirely on the upstream work.
