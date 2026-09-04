@@ -17,13 +17,17 @@ namespace tclac {
 #define SET_TEMP_MASK   0b00001111
 
 #define MODE_POS        7
-#define MODE_MASK       0b00111111
+// Bit 0b00100000 in the mode byte is the AC's DISPLAY state, not part of the
+// mode — it must not be included in MODE_MASK, otherwise turning the display
+// off makes every mode read as unrecognized and fall back to default (AUTO).
+#define DISPLAY_BIT     0b00100000
+#define MODE_MASK       0b00001111
 
-#define MODE_AUTO       0b00110101
-#define MODE_COOL       0b00110001
-#define MODE_DRY        0b00110011
-#define MODE_FAN_ONLY   0b00110010
-#define MODE_HEAT       0b00110100
+#define MODE_AUTO       0b00000101
+#define MODE_COOL       0b00000001
+#define MODE_DRY        0b00000011
+#define MODE_FAN_ONLY   0b00000010
+#define MODE_HEAT       0b00000100
 
 #define FAN_SPEED_POS   8
 #define FAN_QUIET_POS   33

@@ -55,11 +55,25 @@ void tclacClimate::loop() {
     dataRX[2] = esphome::uart::UARTDevice::read();
     dataRX[3] = esphome::uart::UARTDevice::read();
     dataRX[4] = esphome::uart::UARTDevice::read();
-    esphome::uart::UARTDevice::read_array(dataRX + 5, dataRX[4] + 1);
 
-    uint8_t check = getChecksum(dataRX, sizeof(dataRX));
-    if (check != dataRX[67]) {
-        ESP_LOGD("TCL", "Bad checksum: calc=%02X got=%02X", check, dataRX[67]);
+    // dataRX[4] is the payload length byte; only these three total frame
+    // sizes are legitimate. Trusting an arbitrary value here (e.g. line
+    // noise) would let read_array() write past the 68-byte dataRX buffer.
+    if (dataRX[4] != 0x37 && dataRX[4] != 0x3b && dataRX[4] != 0x3e) {
+        ESP_LOGW("TCL", "Bad frame length 0x%02X, dropped", dataRX[4]);
+        return;
+    }
+
+    uint8_t payload_size = dataRX[4] + 1;
+    if (!esphome::uart::UARTDevice::read_array(dataRX + 5, payload_size)) {
+        ESP_LOGW("TCL", "Frame read timeout, dropped");
+        return;
+    }
+
+    uint8_t total_size = 5 + payload_size;
+    uint8_t check = getChecksum(dataRX, total_size);
+    if (check != dataRX[total_size - 1]) {
+        ESP_LOGD("TCL", "Bad checksum: calc=%02X got=%02X", check, dataRX[total_size - 1]);
         return;
     }
     this->readData();
@@ -74,6 +88,11 @@ void tclacClimate::readData() {
     target_temperature = (dataRX[FAN_SPEED_POS] & SET_TEMP_MASK) + 16;
 
     if (dataRX[MODE_POS] & (1 << 4)) {
+        // The display can be toggled by the physical remote, bypassing the
+        // module. Without syncing here, the next takeControl() would push
+        // out the stale cached display_status_ and silently undo that.
+        this->display_status_ = (dataRX[MODE_POS] & DISPLAY_BIT) != 0;
+
         uint8_t modeswitch    = MODE_MASK & dataRX[MODE_POS];
         uint8_t fanswitch     = FAN_SPEED_MASK & dataRX[FAN_SPEED_POS];
         uint8_t swingswitch   = SWING_MODE_MASK & dataRX[SWING_POS];
